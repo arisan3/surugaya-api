@@ -40,4 +40,4 @@ for keyword in keywords:
 
 # B5/D5から書き込み
 ws.update(f'B5:B{4+len(all_titles)}', all_titles)
-ws.update(f'D5:D{4+len(all_links)}', all_links)
+ws.update(f'D5:D{4+len(all_links)}', all_links, value_input_option="USER_ENTERED")
