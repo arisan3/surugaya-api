@@ -3,6 +3,7 @@ from google.oauth2.service_account import Credentials
 import requests
 from bs4 import BeautifulSoup
 import time
+import re
 
 # Googleサービスアカウントの設定
 JSON_PATH = 'totemic-creek-306512-640467f70542.json'
@@ -20,22 +21,22 @@ def search_surugaya_products(keyword, max_count=20):
     soup = BeautifulSoup(res.content, 'html.parser')
     items = []
     for a in soup.select('.item_detail .title > a')[:max_count]:
-        title = a.text.strip()
-        link = 'https://www.suruga-ya.jp' + a['href']
-        items.append((title, link))
+        title = a.get_text(strip=True)
+        href = a.get('href')
+        if not href.startswith('http'):
+            href = 'https://www.suruga-ya.jp' + href
+        items.append((title, href))
     return items
 
 def get_jan_code(product_url):
     try:
         res = requests.get(product_url, timeout=10)
         soup = BeautifulSoup(res.content, 'html.parser')
-        for td in soup.select('th'):
-            if 'JAN' in td.text:
-                jan_td = td.find_next_sibling('td')
-                if jan_td:
-                    jan = ''.join(filter(str.isdigit, jan_td.text.strip()))
-                    if len(jan) == 13:
-                        return jan
+        # JANコードは商品詳細テーブル内に出現
+        text = soup.get_text()
+        m = re.search(r'\b\d{13}\b', text)
+        if m:
+            return m.group(0)
         return ''
     except Exception as e:
         return ''
@@ -61,7 +62,7 @@ for keyword in keywords:
         all_urls.append([url])    # URLのまま
         jan = get_jan_code(url)
         all_jans.append([jan])
-        time.sleep(1.2)  # 負荷対策
+        time.sleep(1.0)  # 負荷対策
 
 # スプレッドシートへ一括書き込み
 if all_titles:
