@@ -42,7 +42,11 @@ for keyword in keywords:
 ws.update(f'B5:B{4+len(titles)}', titles, value_input_option='USER_ENTERED')
 ws.update(f'D5:D{4+len(hyperlinks)}', hyperlinks, value_input_option='USER_ENTERED')
 
+import re
+
 def get_jan_from_kaitori(title):
+    if not title:
+        return ""
     url = f"https://www.suruga-ya.jp/kaitori/search_buy?category=&search_word={requests.utils.quote(title)}&searchbox=1"
     res = requests.get(url)
     soup = BeautifulSoup(res.text, "html.parser")
@@ -50,13 +54,11 @@ def get_jan_from_kaitori(title):
     if jan_cell:
         text = jan_cell.get_text(separator="\n")
         # 正規表現でJANコードだけ抽出（13桁数字）
-        import re
         match = re.search(r"\b\d{13}\b", text)
         if match:
             return match.group()
     return ""
 
-# for ループ内で
-jan = get_jan_from_kaitori(jp_title)
+# forループ内
+jan = get_jan_from_kaitori(title)   # ← jp_title → titleに修正
 jans.append([jan])
-
