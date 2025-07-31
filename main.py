@@ -6,7 +6,7 @@ import re
 import time
 
 # 認証
-JSON_PATH = 'your_service_account.json'  # ←あなたのJSONパスに修正
+JSON_PATH = 'totemic-creek-306512-640467f70542.json'
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 creds = Credentials.from_service_account_file(JSON_PATH, scopes=SCOPES)
 gc = gspread.authorize(creds)
