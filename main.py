@@ -4,6 +4,7 @@ import requests
 from bs4 import BeautifulSoup
 import time
 
+# サービスアカウントJSONパス
 JSON_PATH = 'totemic-creek-306512-640467f70542.json'
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 SPREADSHEET_ID = '1QtWsWnKMdC9882a-_9XWDsGyp4b-LPyK0aVZDlvcpfs'
@@ -13,31 +14,35 @@ gc = gspread.authorize(creds)
 sh = gc.open_by_key(SPREADSHEET_ID)
 ws = sh.worksheet('駿河屋リサーチ')
 
-# A列5行目以降のキーワード取得
+# 検索キーワード（A列 5行目以降）
 keywords = ws.col_values(1)[4:]
 keywords = [kw for kw in keywords if kw]
 
-all_titles = []
-all_links = []
+def normalize_surugaya_url(href):
+    if href.startswith('http'):
+        return href
+    else:
+        return "https://www.suruga-ya.jp" + href
+
+# 取得用リスト
+titles = []
+hyperlinks = []
 
 for keyword in keywords:
-    print(f"検索: {keyword}")
+    # 1キーワードにつき最大20件取得
     search_url = f"https://www.suruga-ya.jp/search?search_word={keyword}&category=0"
     res = requests.get(search_url)
     soup = BeautifulSoup(res.text, 'html.parser')
-    items = soup.select('.title > a')
-    count = 0
+    items = soup.select('.title > a')[:20]
 
     for item in items:
-        if count >= 20:
-            break
-        url = "https://www.suruga-ya.jp" + item['href']
-        title = item.text.strip()
-        all_titles.append([title])
-        all_links.append([f'=HYPERLINK("{url}", "リンク")'])
-        count += 1
+        jp_title = item.get_text(strip=True)
+        href = item.get('href')
+        url = normalize_surugaya_url(href)
+        titles.append([jp_title])
+        hyperlinks.append([f'=HYPERLINK("{url}", "リンク")'])
     time.sleep(1)
 
-# B5/D5から書き込み
-ws.update(f'B5:B{4+len(all_titles)}', all_titles)
-ws.update(f'D5:D{4+len(all_links)}', all_links, value_input_option="USER_ENTERED")
+# 書き込み
+ws.update(f'B5:B{4+len(titles)}', titles)
+ws.update(f'D5:D{4+len(hyperlinks)}', hyperlinks)
