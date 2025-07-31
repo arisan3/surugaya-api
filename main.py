@@ -1,9 +1,9 @@
-
 # 必要なライブラリのインストール（初回のみ）
 import gspread
 from google.oauth2.service_account import Credentials
 
-JSON_PATH = '/content/drive/MyDrive/totemic-creek-306512-640467f70542.json'
+# ↓↓↓ ここだけ修正！ファイル名だけにします
+JSON_PATH = 'totemic-creek-306512-640467f70542.json'
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
 creds = Credentials.from_service_account_file(JSON_PATH, scopes=SCOPES)
