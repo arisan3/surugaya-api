@@ -11,51 +11,74 @@ SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 creds = Credentials.from_service_account_file(JSON_PATH, scopes=SCOPES)
 gc = gspread.authorize(creds)
 
+# スプレッドシート設定
 SPREADSHEET_ID = '1QtWsWnKMdC9882a-_9XWDsGyp4b-LPyK0aVZDlvcpfs'
 SHEET_NAME = '駿河屋リサーチ'
 ws = gc.open_by_key(SPREADSHEET_ID).worksheet(SHEET_NAME)
 
-keywords = ws.col_values(1)[4:]  # A5:A
+# A列（キーワード）取得
+keywords = ws.col_values(1)[4:]  # A5以降
 
-def surugaya_kaitori(keyword, max_count=20):
-    url = f"https://www.suruga-ya.jp/kaitori/search_buy?category=&search_word={requests.utils.quote(keyword)}&searchbox=1"
-    res = requests.get(url, timeout=10)
-    soup = BeautifulSoup(res.content, "html.parser")
-    trs = soup.select('table.result tr.lstap')
-    results = []
-    for tr in trs[:max_count]:
-        tds = tr.select('td')
-        if len(tds) < 3:
+def get_surugaya_items(keyword, max_count=20):
+    # 駿河屋で検索
+    search_url = f'https://www.suruga-ya.jp/kaitori/search_buy?category=&search_word={requests.utils.quote(keyword)}&searchbox=1'
+    res = requests.get(search_url, timeout=10)
+    soup = BeautifulSoup(res.content, 'html.parser')
+    rows = soup.select('table.result tr.l1stap')[:max_count]
+    items = []
+    for row in rows:
+        # タイトルと商品詳細ページURL
+        a_tag = row.find('a', href=True)
+        if not a_tag:
             continue
-        # 商品タイトル（リンクがついてるテキスト）
-        a = tds[2].select_one('a')
-        title = a.text.strip() if a else tds[2].text.strip()
-        # 商品URL
-        url = 'https://www.suruga-ya.jp' + a['href'] if a else ''
-        # JANコード
-        jan_match = re.findall(r'\b\d{13}\b', tds[3].text)
-        jan = jan_match[0] if jan_match else ''
-        results.append((title, url, jan))
-    return results
+        title = a_tag.text.strip()
+        link = 'https://www.suruga-ya.jp' + a_tag['href']
+        # 商品詳細ページからJANコード取得
+        jan = ''
+        try:
+            detail_res = requests.get(link, timeout=10)
+            detail_soup = BeautifulSoup(detail_res.content, 'html.parser')
+            text = detail_soup.get_text()
+            m = re.search(r'\b(\d{13})\b', text)
+            if m:
+                jan = m.group(1)
+        except Exception as e:
+            pass
+        items.append((title, link, jan))
+        time.sleep(1)  # アクセス負荷軽減
+    return items
 
-start_row = 5
-for idx, keyword in enumerate(keywords):
-    if not keyword.strip():
+# データ格納用
+all_titles = []
+all_urls = []
+all_jans = []
+
+for kw in keywords:
+    if not kw.strip():
+        all_titles.append([''])
+        all_urls.append([''])
+        all_jans.append([''])
         continue
-    print(f"{idx+1}件目:「{keyword}」で取得中…")
-    items = surugaya_kaitori(keyword)
-    # B, D, E列にそれぞれ書き込み
-    b_values, d_values, e_values = [], [], []
-    for t, u, j in items:
-        b_values.append([t])
-        d_values.append([u])
-        e_values.append([j])
-    end_row = start_row + len(b_values) - 1
-    if b_values:
-        ws.update(f'B{start_row}:B{end_row}', b_values)
-        ws.update(f'D{start_row}:D{end_row}', d_values)
-        ws.update(f'E{start_row}:E{end_row}', e_values)
-    start_row += 20  # 次キーワード分を20行下から
-    time.sleep(1.2)
+    items = get_surugaya_items(kw, max_count=20)
+    if not items:
+        all_titles.append(['該当商品なし'])
+        all_urls.append([''])
+        all_jans.append([''])
+        continue
+    # 1セルに1行ずつ（タイトル・URL・JAN）を改行区切りでまとめて入れる
+    titles = [x[0] for x in items]
+    urls = [x[1] for x in items]
+    jans = [x[2] for x in items]
+    all_titles.append(["\n".join(titles)])
+    all_urls.append(["\n".join(urls)])
+    all_jans.append(["\n".join(jans)])
 
-print("完了！")
+# B列、D列、E列に一括書き込み
+if all_titles:
+    ws.update(f'B5:B{4+len(all_titles)}', all_titles)
+if all_urls:
+    ws.update(f'D5:D{4+len(all_urls)}', all_urls)
+if all_jans:
+    ws.update(f'E5:E{4+len(all_jans)}', all_jans)
+
+print('全て完了！')
